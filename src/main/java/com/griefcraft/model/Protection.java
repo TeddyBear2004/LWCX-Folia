@@ -37,10 +37,8 @@ import com.griefcraft.util.ProtectionFinder;
 import com.griefcraft.util.StringUtil;
 import com.griefcraft.util.TimeUtil;
 import com.griefcraft.util.UUIDRegistry;
-import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
-import org.bukkit.Material;
-import org.bukkit.World;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -849,10 +847,18 @@ public class Protection {
     /**
      * Remove the protection from cache
      */
+    public void removeCache(ScheduledTask task) {
+        this.removeCache();
+    }
+
     public void removeCache() {
         LWC lwc = LWC.getInstance();
         lwc.getProtectionCache().removeProtection(this);
         radiusRemoveCache();
+    }
+
+    public Location getLocation() {
+        return new Location(getBukkitWorld(), x, y, z);
     }
 
     /**

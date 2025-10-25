@@ -79,11 +79,9 @@ public class AdminBackup extends JavaModule {
             final String backupName = StringUtil.join(args, 2);
             sender.sendMessage("Restoring backup " + backupName);
 
-            lwc.getPlugin().getServer().getScheduler().scheduleAsyncDelayedTask(lwc.getPlugin(), new Runnable() {
-                public void run() {
-                    BackupManager.Result result = lwc.getBackupManager().restoreBackup(backupName);
-                    sender.sendMessage("Result: " + result);
-                }
+            lwc.getPlugin().getServer().getAsyncScheduler().runNow(lwc.getPlugin(), (task) -> {
+                BackupManager.Result result = lwc.getBackupManager().restoreBackup(backupName);
+                sender.sendMessage("Result: " + result);
             });
         }
     }

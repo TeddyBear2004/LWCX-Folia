@@ -1,10 +1,7 @@
 package com.griefcraft.bukkit;
 
-import org.bukkit.Chunk;
-import org.bukkit.FluidCollisionMode;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.World;
+import com.destroystokyo.paper.block.BlockSoundGroup;
+import org.bukkit.*;
 import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -20,6 +17,7 @@ import org.bukkit.util.BoundingBox;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 import org.bukkit.util.VoxelShape;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
 import java.util.List;
@@ -48,6 +46,11 @@ public class EntityBlock implements Block {
     @Override
     public int getZ() {
         return 50000 + EntityBlock.entity.getUniqueId().hashCode();
+    }
+
+    @Override
+    public boolean isValidTool(@NotNull ItemStack itemStack) {
+        return false;
     }
 
     public int getTypeId() {
@@ -98,6 +101,36 @@ public class EntityBlock implements Block {
     }
 
     @Override
+    public boolean breakNaturally(boolean b, boolean b1) {
+        return false;
+    }
+
+    @Override
+    public boolean breakNaturally(@NotNull ItemStack itemStack, boolean b, boolean b1) {
+        return false;
+    }
+
+    @Override
+    public boolean breakNaturally(@NotNull ItemStack itemStack, boolean b, boolean b1, boolean b2) {
+        return false;
+    }
+
+    @Override
+    public void tick() {
+
+    }
+
+    @Override
+    public void fluidTick() {
+
+    }
+
+    @Override
+    public void randomTick() {
+
+    }
+
+    @Override
     public boolean applyBoneMeal(BlockFace blockFace) {
         return false;
     }
@@ -105,6 +138,11 @@ public class EntityBlock implements Block {
     @Override
     public Biome getBiome() {
         // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public @NotNull Biome getComputedBiome() {
         return null;
     }
 
@@ -184,6 +222,16 @@ public class EntityBlock implements Block {
     }
 
     @Override
+    public @NotNull BlockSoundGroup getSoundGroup() {
+        return null;
+    }
+
+    @Override
+    public @NotNull SoundGroup getBlockSoundGroup() {
+        return null;
+    }
+
+    @Override
     public BlockFace getFace(Block arg0) {
         // TODO Auto-generated method stub
         return null;
@@ -253,6 +301,11 @@ public class EntityBlock implements Block {
     }
 
     @Override
+    public @NotNull BlockState getState(boolean b) {
+        return null;
+    }
+
+    @Override
     public double getTemperature() {
         // TODO Auto-generated method stub
         return 0;
@@ -302,6 +355,31 @@ public class EntityBlock implements Block {
     }
 
     @Override
+    public boolean isBuildable() {
+        return false;
+    }
+
+    @Override
+    public boolean isBurnable() {
+        return false;
+    }
+
+    @Override
+    public boolean isReplaceable() {
+        return false;
+    }
+
+    @Override
+    public boolean isSolid() {
+        return false;
+    }
+
+    @Override
+    public boolean isCollidable() {
+        return false;
+    }
+
+    @Override
     public void setBiome(Biome arg0) {
         // TODO Auto-generated method stub
 
@@ -340,4 +418,15 @@ public class EntityBlock implements Block {
     public String getTranslationKey() {
         return null;
     }
+
+    @Override
+    public boolean isSuffocating() {
+        return false;
+    }
+
+    @Override
+    public @NotNull String translationKey() {
+        return "";
+    }
+
 }

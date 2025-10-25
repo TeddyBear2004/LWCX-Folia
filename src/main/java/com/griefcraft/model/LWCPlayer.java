@@ -30,6 +30,7 @@ package com.griefcraft.model;
 
 import com.griefcraft.lwc.LWC;
 import com.griefcraft.modules.history.HistoryModule;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -37,6 +38,7 @@ import org.bukkit.permissions.Permission;
 import org.bukkit.permissions.PermissionAttachment;
 import org.bukkit.permissions.PermissionAttachmentInfo;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -139,6 +141,11 @@ public class LWCPlayer implements CommandSender {
      */
     @Override
     public Spigot spigot() {
+        return null;
+    }
+
+    @Override
+    public @NotNull Component name() {
         return null;
     }
 

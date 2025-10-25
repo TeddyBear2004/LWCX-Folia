@@ -35,6 +35,7 @@ import com.griefcraft.scripting.JavaModule;
 import com.griefcraft.scripting.event.LWCProtectionInteractEvent;
 import com.griefcraft.util.config.Configuration;
 import com.griefcraft.util.matchers.DoorMatcher;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
@@ -137,8 +138,9 @@ public class DoorsModule extends JavaModule {
         final Block finalBlock = block;
         final Block finalDoubleDoorBlock = doubleDoorBlock;
 
+        Location location = block.getLocation();
         // Schedule a task to "immediately" open the door, since another plugin might cancel the event later
-        lwc.getPlugin().getServer().getScheduler().scheduleSyncDelayedTask(lwc.getPlugin(), () -> {
+        lwc.getPlugin().getServer().getRegionScheduler().run(lwc.getPlugin(), location, (task) -> {
             changeDoorStates(event, true, (opensWhenClicked ? null : finalBlock), finalDoubleDoorBlock);
         });
 
@@ -150,7 +152,7 @@ public class DoorsModule extends JavaModule {
             // Create the task
             // If we are set to close the door after a set period, let's create
             // a sync task for it
-            lwc.getPlugin().getServer().getScheduler().scheduleSyncDelayedTask(lwc.getPlugin(), () -> {
+            lwc.getPlugin().getServer().getRegionScheduler().runDelayed(lwc.getPlugin(), location, (task) -> {
 
                 // Essentially all we need to do is reset the door
                 // states

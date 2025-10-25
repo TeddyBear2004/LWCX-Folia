@@ -241,7 +241,7 @@ public class LWC {
      * @return
      */
     public static String normalizeMaterialName(Material material) {
-        String name = StringUtils.replace(material.toString().toLowerCase(), "block", "");
+        String name = org.apache.commons.lang3.StringUtils.replace(material.toString().toLowerCase(), "block", "");
 
         // some name normalizations
         if (name.contains("sign")) {

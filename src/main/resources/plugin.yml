@@ -10,6 +10,7 @@ description: >
              Other blocks can also be protected individually, if configured.
 load: startup
 softdepend: [Vault, WorldEdit, WorldGuard, Towny, Factions]
+folia-supported: true
 
 commands:
   lwc:

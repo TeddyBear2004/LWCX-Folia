@@ -41,7 +41,7 @@ public class Updater {
     public void init() {
         final LWC lwc = LWC.getInstance();
         if (lwc.getConfiguration().getBoolean("core.updateNotifier", true)) {
-            lwc.getPlugin().getServer().getScheduler().scheduleAsyncDelayedTask(lwc.getPlugin(), () -> {
+            lwc.getPlugin().getServer().getAsyncScheduler().runNow(lwc.getPlugin(), (task) -> {
                 Object[] updates = Updater.getLastUpdate();
                 if (updates.length == 2) {
                     lwc.log("[LWCX] New update avaible:");

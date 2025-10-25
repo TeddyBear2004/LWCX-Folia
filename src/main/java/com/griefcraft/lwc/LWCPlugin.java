@@ -341,9 +341,6 @@ public class LWCPlugin extends JavaPlugin {
             lwc.destruct();
             BlockCache.destruct();
         }
-
-        // cancel all tasks we created
-        getServer().getScheduler().cancelTasks(this);
     }
 
     @Override

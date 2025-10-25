@@ -36,11 +36,9 @@ import com.griefcraft.scripting.event.LWCCommandEvent;
 import com.griefcraft.sql.Database;
 import com.griefcraft.sql.PhysDB;
 import com.griefcraft.util.Colors;
-import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
-import org.bukkit.scheduler.BukkitScheduler;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -49,8 +47,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
+import java.util.concurrent.CompletableFuture;
 
 public class AdminCleanup extends JavaModule {
 
@@ -88,7 +85,7 @@ public class AdminCleanup extends JavaModule {
         }
 
         lwc.sendLocale(sender, "protection.admin.cleanup.start", "count",
-                lwc.getPhysicalDatabase().getProtectionCount());
+                       lwc.getPhysicalDatabase().getProtectionCount());
 
         // do the work in a separate thread so we don't fully lock the server
         new Thread(new Admin_Cleanup_Thread(lwc, sender, silent)).start();
@@ -133,7 +130,7 @@ public class AdminCleanup extends JavaModule {
                 int protectionId = protection.getId();
 
                 lwc.getDatabaseThread().removeProtection(protection);
-                lwc.getPlugin().getServer().getScheduler().runTask(lwc.getPlugin(), protection::removeCache);
+                lwc.getPlugin().getServer().getRegionScheduler().run(lwc.getPlugin(), protection.getLocation(), protection::removeCache);
 
                 if (count % 100000 == 0) {
                     builder.append("DELETE FROM ").append(prefix).append("protections WHERE id IN (")
@@ -161,9 +158,6 @@ public class AdminCleanup extends JavaModule {
             int removed = 0;
             int percentChecked = 0;
 
-            // the bukkit scheduler
-            BukkitScheduler scheduler = Bukkit.getScheduler();
-
             try {
                 sender.sendMessage(Colors.Dark_Red + "Processing cleanup request now in a separate thread");
 
@@ -181,7 +175,7 @@ public class AdminCleanup extends JavaModule {
                 database.load();
 
                 Statement resultStatement = database.getConnection().createStatement(ResultSet.TYPE_FORWARD_ONLY,
-                        ResultSet.CONCUR_READ_ONLY);
+                                                                                     ResultSet.CONCUR_READ_ONLY);
 
                 if (lwc.getPhysicalDatabase().getType() == Database.Type.MySQL) {
                     resultStatement.setFetchSize(Integer.MIN_VALUE);
@@ -190,7 +184,7 @@ public class AdminCleanup extends JavaModule {
                 String prefix = lwc.getPhysicalDatabase().getPrefix();
                 ResultSet result = resultStatement.executeQuery(
                         "SELECT id, owner, type, x, y, z, data, blockId, world, password, date, last_accessed FROM "
-                                + prefix + "protections");
+                        + prefix + "protections");
                 int checked = 0;
 
                 while (result.next()) {
@@ -205,14 +199,16 @@ public class AdminCleanup extends JavaModule {
                         }
                     }
 
-                    // Get all of the blocks in the world
-                    Future<Void> getBlocks = scheduler.callSyncMethod(lwc.getPlugin(), new Callable<Void>() {
-                        public Void call() throws Exception {
+                    // Get all of the blocks in the world using Folia scheduler
+                    CompletableFuture<Void> getBlocks = new CompletableFuture<>();
+                    lwc.getPlugin().getServer().getRegionScheduler().run(lwc.getPlugin(), protections.get(0).getLocation(), (task) -> {
+                        try {
                             for (Protection protection : protections) {
                                 protection.getBlock(); // this will cache it also :D
                             }
-
-                            return null;
+                            getBlocks.complete(null);
+                        } catch (Exception e) {
+                            getBlocks.completeExceptionally(e);
                         }
                     });
 
@@ -222,20 +218,27 @@ public class AdminCleanup extends JavaModule {
                     for (final Protection protection : protections) {
                         if (protection.getBlockId() == EntityBlock.ENTITY_BLOCK_ID) {
                             final int fakeId = EntityBlock.ENTITY_BLOCK_ID;
-                            // checks if the entity exists
-                            Future<Boolean> entityExists = scheduler.callSyncMethod(lwc.getPlugin(), new Callable<Boolean>() {
-                                public Boolean call() throws Exception {
-                                    if (protection.getBukkitWorld() == null) return false;
+                            // checks if the entity exists using Folia scheduler
+                            CompletableFuture<Boolean> entityExists = new CompletableFuture<>();
+                            lwc.getPlugin().getServer().getRegionScheduler().run(lwc.getPlugin(), protection.getLocation(), (task) -> {
+                                try {
+                                    if (protection.getBukkitWorld() == null) {
+                                        entityExists.complete(false);
+                                        return;
+                                    }
                                     for (Entity entity : protection.getBukkitWorld().getEntities()) {
                                         if (entity.getUniqueId().hashCode() == fakeId) {
-                                            return true;
+                                            entityExists.complete(true);
+                                            return;
                                         }
                                     }
-                                    return false;
+                                    entityExists.complete(false);
+                                } catch (Exception e) {
+                                    entityExists.completeExceptionally(e);
                                 }
                             });
 
-                            try {
+                            try{
                                 boolean exists = entityExists.get();
 
                                 if (!exists) {
@@ -246,7 +249,7 @@ public class AdminCleanup extends JavaModule {
                                         lwc.sendLocale(sender, "protection.admin.cleanup.removednoexist", "protection", protection.toString());
                                     }
                                 }
-                            } catch (InterruptedException e) {
+                            }catch(InterruptedException e){
                                 lwc.log("Exception caught during cleanup: " + e.getMessage());
 
                             }
@@ -273,7 +276,7 @@ public class AdminCleanup extends JavaModule {
                     if (percent % 5 == 0 && percentChecked != percent) {
                         percentChecked = percent;
                         sender.sendMessage(Colors.Dark_Red + "Cleanup @ " + percent + "% [ " + checked + "/"
-                                + totalProtections + " protections ] [ removed " + removed + " protections ]");
+                                           + totalProtections + " protections ] [ removed " + removed + " protections ]");
                     }
 
                     // Clear the protection set, we are done with them
@@ -288,8 +291,8 @@ public class AdminCleanup extends JavaModule {
                 push(toRemove);
 
                 sender.sendMessage("Cleanup completed. Removed " + removed + " protections out of " + checked
-                        + " checked protections.");
-            } catch (Exception e) { // database.connect() throws Exception
+                                   + " checked protections.");
+            }catch(Exception e){ // database.connect() throws Exception
                 lwc.log("Exception caught during cleanup: " + e.getMessage());
                 e.printStackTrace();
             }

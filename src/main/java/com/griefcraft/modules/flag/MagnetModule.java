@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.Queue;
 
 public class MagnetModule extends JavaModule {
+
     @SuppressWarnings("ExcessiveLambdaUsage")
     private static final EntityType ITEM_ENTITY_TYPE = EnumUtil
             .valueOf(EntityType.class, "DROPPED_ITEM") // 1.20.4 and prior
@@ -93,153 +94,99 @@ public class MagnetModule extends JavaModule {
     private final Queue<MagnetNode> items = new LinkedList<>();
 
     private class MagnetNode {
+
         Item item;
         Protection protection;
+
     }
 
     // does all of the work
     // searches the worlds for items and magnet chests nearby
     private class MagnetTask implements Runnable {
+
+        @Override
         public void run() {
-            Server server = Bukkit.getServer();
             LWC lwc = LWC.getInstance();
 
-            // Do we need to requeue?
-            if (items.size() == 0) {
-                for (World world : server.getWorlds()) {
+            // Wenn keine Items in der Queue → scan regions
+            if (items.isEmpty()) {
+                for (World world : Bukkit.getWorlds()) {
                     for (Entity entity : world.getEntities()) {
-                        if (isDisplay(entity)) {
-                            continue;
-                        }
+                        if (!(entity instanceof Item item)) continue;
+                        if (isDisplay(entity)) continue;
 
-                        if (!(entity instanceof Item)) {
-                            continue;
-                        }
-
-                        Item item = (Item) entity;
                         ItemStack stack = item.getItemStack();
-
-                        // check if the pickup delay is ok
-                        if (item.getPickupDelay() > maxPickupDelay) {
-                            continue;
-                        }
-
-                        // check if it is in the blacklist
-                        if (itemBlacklist.contains(stack.getType())) {
-                            continue;
-                        }
-
-                        // check if the item is valid
-                        if (stack.getAmount() <= 0) {
-                            continue;
-                        }
-
-                        if (item.isDead()) {
-                            continue;
-                        }
+                        if (item.getPickupDelay() > maxPickupDelay) continue;
+                        if (itemBlacklist.contains(stack.getType())) continue;
+                        if (stack.getAmount() <= 0 || item.isDead()) continue;
 
                         LWCMagnetPullEvent event = new LWCMagnetPullEvent(item);
                         lwc.getModuleLoader().dispatchEvent(event);
+                        if (event.isCancelled()) continue;
 
-                        // has the event been cancelled?
-                        if (event.isCancelled()) {
-                            continue;
-                        }
+                        Location loc = item.getLocation();
+                        List<Protection> protections = lwc.getPhysicalDatabase()
+                                .loadProtections(world.getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(), radius);
 
-                        Location location = item.getLocation();
-                        int x = location.getBlockX();
-                        int y = location.getBlockY();
-                        int z = location.getBlockZ();
-
-                        List<Protection> protections = lwc.getPhysicalDatabase().loadProtections(world.getName(), x, y,
-                                z, radius);
                         for (Protection protection : protections) {
-                            if (protection.hasFlag(Flag.Type.MAGNET)) {
+                            if (!protection.hasFlag(Flag.Type.MAGNET)) continue;
+                            if (!protection.getBukkitWorld().equals(item.getWorld())) continue;
 
-                                if (protection.getBukkitWorld().getName() != item.getWorld().getName())
-                                    continue;
+                            if (!(protection.getBlock().getState() instanceof InventoryHolder)) continue;
 
-                                // we only want inventory blocks
-                                if (!(protection.getBlock().getState() instanceof InventoryHolder)) {
-                                    continue;
-                                }
+                            // keine Shulker → Shulker
+                            if (item.getItemStack().getType().toString().contains("SHULKER_BOX")
+                                && protection.getBlock().getType().toString().contains("SHULKER_BOX"))
+                                continue;
 
-                                // never allow a shulker box to enter another shulker box
-                                if (item.getItemStack().getType().toString().contains("SHULKER_BOX") && protection.getBlock().getType().toString().contains("SHULKER_BOX")) {
-                                    continue;
-                                }
-
-                                MagnetNode node = new MagnetNode();
-                                node.item = item;
-                                node.protection = protection;
-                                items.offer(node);
-                                break;
-                            }
+                            MagnetNode node = new MagnetNode();
+                            node.item = item;
+                            node.protection = protection;
+                            items.offer(node);
+                            break;
                         }
                     }
                 }
             }
 
-            // Throttle amount of items polled
+            // Items abarbeiten
             int count = 0;
             MagnetNode node;
-
-            while ((node = items.poll()) != null) {
+            while ((node = items.poll()) != null && count <= perSweep) {
                 Item item = node.item;
                 Protection protection = node.protection;
-
-                World world = item.getWorld();
-                ItemStack itemStack = item.getItemStack();
-                Location location = item.getLocation();
-                Block block = protection.getBlock();
-
-                if (item.isDead()) {
+                if (item.isDead())
                     continue;
-                }
 
-                // Remove the items and suck them up :3
-                Map<Integer, ItemStack> remaining;
-                try {
-                    remaining = lwc.depositItems(block, itemStack);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    return;
-                }
+                // ⚠️ Wichtig: alle Weltzugriffe im Region-Thread ausführen
+                item.getScheduler().run(LWC.getInstance().getPlugin(), task -> {
+                    try{
+                        Map<Integer, ItemStack> remaining = lwc.depositItems(protection.getBlock(), item.getItemStack());
+                        if (remaining == null) return;
 
-                // we cancelled the item drop for some reason
-                if (remaining == null) {
-                    continue;
-                }
+                        if (remaining.size() == 1) {
+                            ItemStack other = remaining.values().iterator().next();
+                            if (item.getItemStack().isSimilar(other)) return;
+                        }
 
-                if (remaining.size() == 1) {
-                    ItemStack other = remaining.values().iterator().next();
-
-                    if (itemStack.getType() == other.getType() && itemStack.getAmount() == other.getAmount()) {
-                        continue;
+                        item.remove(); // sicher im Region-Thread
+                        if (!remaining.isEmpty()) {
+                            Location loc = item.getLocation();
+                            remaining.values().forEach(stack -> item.getWorld().dropItemNaturally(loc, stack));
+                        }
+                    }catch(Exception e){
+                        e.printStackTrace();
                     }
-                }
-                // remove the item on the ground
-                item.remove();
-
-                // if we have a remainder, we need to drop them
-                if (remaining.size() > 0) {
-                    for (ItemStack stack : remaining.values()) {
-                        world.dropItemNaturally(location, stack);
-                    }
-                }
-
-                if (count > perSweep) {
-                    break;
-                }
+                }, null);
 
                 count++;
             }
-
         }
+
     }
 
     public static boolean isDisplay(Entity entity) {
-        try {
+        try{
             if (entity.getType() == ITEM_ENTITY_TYPE) {
                 ItemMeta itemMeta = ((Item) entity).getItemStack().getItemMeta();
                 if (itemMeta != null && containsLocation(itemMeta.getDisplayName())) {
@@ -250,7 +197,7 @@ public class MagnetModule extends JavaModule {
                     return true;
                 }
             }
-        } catch (NoSuchFieldError error) {
+        }catch(NoSuchFieldError error){
             // do nothing
         }
         return false;
@@ -289,9 +236,9 @@ public class MagnetModule extends JavaModule {
             }
         }
 
-        // register our search thread schedule
+        // register our search thread schedule using Folia GlobalRegionScheduler
         MagnetTask searchThread = new MagnetTask();
-        lwc.getPlugin().getServer().getScheduler().scheduleSyncRepeatingTask(lwc.getPlugin(), searchThread, 50, 50);
+        lwc.getPlugin().getServer().getGlobalRegionScheduler().runAtFixedRate(lwc.getPlugin(), (task) -> searchThread.run(), 50L, 50L);
     }
 
 }
